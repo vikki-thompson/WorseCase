@@ -1,0 +1,30 @@
+## Event choice supplementary figure
+import cartopy.crs as ccrs
+import cartopy.feature as c
+from matplotlib.transforms import offset_copy
+import warnings
+warnings.filterwarnings("ignore")
+
+R1 = [56, 44, 15, 0]
+fig, axs = plt.subplots(nrows=6, ncols=5, subplot_kw={'projection': ccrs.PlateCarree()}, figsize=(25,20))
+
+# Observed event
+event_z500 = gdata.var_event_data('z500', R1, date)
+event_prec = gdata.var_event_data('tp', R1, date)
+lats=event_prec.coord('latitude').points
+lons=event_prec.coord('longitude').points
+c = axs[0,0].contourf(lons, lats, event_prec.data, levels=np.linspace(1, 80, 9), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.02, 0.4])
+fig.colorbar(c, cax=cbar_ax, ticks=np.arange(0, 100, 10))
+cbar_ax.set_ylabel('Total Precipitation (mm)', labelpad=10, rotation=270, fontsize=12)
+cbar_ax.set_yticklabels(['0', '', '20','','40','','60','','80',''])
+
+ax_list = fig.axes
+for ens in np.arange(50):
+    TP_cube = gboost.get_TP_cube(str(20070814), str(20070825), R1, ens)
+    c = ax_list[ens].contourf(TP_cube.coord('longitude').points, TP_cube.coord('latitude').points, TP_cube.data, levels=np.linspace(1, 80, 9), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='both')
+    ax_list[ens].set_title('Alternative Storyline', loc='right')
+    ax_list[ens].add_feature(cf.BORDERS)
+    ax_list[ens].add_feature(cf.COASTLINE) 
+    #add_cities(ax_list[ens])

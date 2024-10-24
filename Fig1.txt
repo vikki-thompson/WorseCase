@@ -1,0 +1,372 @@
+# ETHZ model: identifying analogs to boost
+#
+#
+# Original: vikki.thompson 19/06/2023
+# Last Editted 26/06/2023
+
+
+
+### Load neccessary libraries
+import subprocess
+import numpy as np
+import iris
+import sys
+import matplotlib.pyplot as plt
+sys.path.append('/usr/people/thompson/WP1/boosting')
+import functions_boosting as gboost
+
+sys.path.append('/usr/people/thompson/WP1')
+import functions_get_data as gdata
+import functions_plot_data as pdata
+
+import cartopy.crs as ccrs
+import cartopy.feature as cf
+plt.ion(); plt.show()
+
+## Variables
+R1 = [70, 30, 30, -30] # large analogues region
+R2 = [62, 42, 20, -10] # small analogues region
+date = [2021, 'Jul', 14] # event date
+
+### R1 ANOM ###
+# ERA5 data - the event
+z500 = gdata.extract_region(gdata.extract_JJA(gdata.era5_mydata('z500', range(2000,2023))), R1)
+z500 = z500 - z500.collapsed('time', iris.analysis.MEAN) 
+event_z500 = gdata.pull_out_day_era(z500, date[0], date[1], date[2])
+# load cube list
+z500_model = iris.load('/net/pc200023/nobackup/users/thompson/ETHZ/CLists/z500_R1.nc')
+for i, each in enumerate(z500_model):
+    z500_model[i] = each*10 - (each*10).collapsed('time', iris.analysis.MEAN)
+
+# regrid era5 to match model
+event_z500 = gdata.regrid(event_z500, z500_model[0])
+# Identfy analogs in ETHZ Z500 field
+D = gboost.euclidean_distance(z500_model, event_z500)
+# dates & realisations of analogs
+date_list, euc_dist, real_list = gboost.analog_dates(D, 20)
+# check for neighbours
+date_list, real_list, euc_dist = gboost.remove_neighbours(date_list, real_list, euc_dist)
+# pull out events as list of cubes
+analogs = gboost.list_analogs(date_list[:30], real_list[:30], z500_model[:30])
+#gboost.plot_analogs(analogs, np.min(event_z500.data), np.max(event_z500.data))
+#gboost.plot_single_event(event_z500)
+
+ZR1_date = date_list
+ZR1_real = real_list
+ZR1_ana = analogs
+# Identfy analogs in ETHZ Z500 field
+D = gboost.euclidean_distance(z500_model, event_z500)
+# dates & realisations of analogs
+date_list, euc_dist, real_list = gboost.analog_dates(D, 20)
+# check for neighbours
+date_list, real_list, euc_dist = gboost.remove_neighbours(date_list, real_list, euc_dist)
+# pull out events as list of cubes
+analogs = gboost.list_analogs(date_list[:30], real_list[:30], z500_model[:30])
+
+ZR1_date = date_list
+ZR1_real = real_list
+ZR1_ana = analogs
+
+
+from scipy.stats.stats import pearsonr
+
+C_R1 = [] # to be list of all correlation coefficients
+for each in ZR1_ana:
+    b, c = np.shape(event_z500)
+    XA = event_z500.data.reshape(b*c)
+    XB = each.data.reshape(b*c)
+    C_R1.append(pearsonr(XA, XB)[0])
+
+print(C_R1)
+### R2 ANOM ###
+# ERA5 data - the event
+z500 = gdata.extract_region(gdata.extract_JJA(gdata.era5_mydata('z500', range(2000,2023))), R2)
+z500 = z500 - z500.collapsed('time', iris.analysis.MEAN) 
+event_z500 = gdata.pull_out_day_era(z500, date[0], date[1], date[2])
+# load cube list
+z500_model = iris.load('/net/pc200023/nobackup/users/thompson/ETHZ/CLists/z500_R2.nc')
+for i, each in enumerate(z500_model):
+    z500_model[i] = each*10 - (each*10).collapsed('time', iris.analysis.MEAN)
+
+# regrid era5 to match model
+event_z500 = gdata.regrid(event_z500, z500_model[0])
+# Identfy analogs in ETHZ field
+D = gboost.euclidean_distance(z500_model, event_z500)
+# dates & realisations of analogs
+date_list, euc_dist, real_list = gboost.analog_dates(D, 20)
+# check for neighbours
+date_list, real_list, euc_dist = gboost.remove_neighbours(date_list, real_list, euc_dist)
+# pull out events as list of cubes
+analogs = gboost.list_analogs(date_list[:30], real_list[:30], z500_model[:30])
+#gboost.plot_analogs(analogs, np.min(event_z500.data), np.max(event_z500.data))
+#gboost.plot_single_event(event_z500)
+
+ZR2_date = date_list
+ZR2_real = real_list
+ZR2_ana = analogs
+
+
+C_R2 = [] # to be list of all correlation coefficients
+for each in ZR2_ana:
+    b, c = np.shape(event_z500)
+    XA = event_z500.data.reshape(b*c)
+    XB = each.data.reshape(b*c)
+    C_R2.append(pearsonr(XA, XB)[0])
+
+print(C_R2)
+R_list = []; D_list = []; M_list = []; Y_list = []
+for D, R in zip(ZR1_date[:31], ZR1_real[:31]):
+    for i, (D2, R2) in enumerate(zip(ZR2_date[:31], ZR2_real[:31])):
+        if D == D2 and R == R2:
+            print(D,R)
+            print(str(ZR2_ana[i].coord('realization').points[0]),': ',ZR2_ana[i].coord('day_of_month').points[0],ZR2_ana[i].coord('month').points[0],analogs[i].coord('year').points[0])
+            R_list.append(ZR2_ana[i].coord('realization').points[0])
+            D_list.append(ZR2_ana[i].coord('day_of_month').points[0])
+            M_list.append(ZR2_ana[i].coord('month').points[0])
+            Y_list.append(analogs[i].coord('year').points[0])
+        else: pass
+# Create figure - for each event Z500 field (contour) and precip field (underlaid) for region R1
+##
+R_list = [15, 29, 11, 8, 22, 1, 13] 
+D_list = [9, 19, 1, 25, 14, 28, 1]
+M_list = ['Jul', 'Aug', 'Aug', 'Aug', 'Jul', 'Aug', 'Jul']
+Y_list = [2035, 2034, 2016, 2007, 2027, 2009, 2033]
+##
+
+PREC = []; Z500 = []
+for i in range(len(R_list)):
+    R = R_list[i];
+    D = D_list[i]; M = M_list[i]; Y = Y_list[i]
+    print(R, D, M, Y)
+    PREC.append(gboost.pull_out_day('pr_mm', R, D, M, Y))
+    Z500.append(gboost.pull_out_day('Z500', R, D, M, Y))
+## Event choice supplementary figure
+
+
+fig, axs = plt.subplots(nrows=2, ncols=4, subplot_kw={'projection': ccrs.PlateCarree()}, figsize=(12,7))
+
+# Observed event
+R1 = [60, 40, 20, -10] # analog region
+event_z500 = gdata.var_event_data('z500', R1, date)
+event_prec = gdata.var_event_data('tp', R1, date)
+lats=event_prec.coord('latitude').points
+lons=event_prec.coord('longitude').points
+c = axs[0,0].contourf(lons, lats, event_prec.data, levels=np.linspace(1, 80, 9), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.02, 0.4])
+fig.colorbar(c, cax=cbar_ax, ticks=np.arange(0, 100, 10))
+cbar_ax.set_ylabel('Total Precipitation (mm)', labelpad=10, rotation=270, fontsize=12)
+cbar_ax.set_yticklabels(['0', '', '20','','40','','60','','80',''])
+
+lats=event_z500.coord('latitude').points
+lons=event_z500.coord('longitude').points
+c2 = axs[0,0].contour(lons, lats, event_z500.data/1000, levels=np.arange(55, 58, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[0,0].clabel(c2, inline=1, fontsize=12)
+axs[0,0].add_feature(cf.BORDERS)
+axs[0,0].add_feature(cf.COASTLINE)
+axs[0,0].set_title('(a)', loc='left')
+axs[0,0].set_title('Event in Reanalysis', loc='right')
+
+axs_list = [axs[0,1], axs[0,2], axs[0,3], axs[1,0], axs[1,1], axs[1,2], axs[1,3]]
+for i, P in enumerate(PREC):
+    lats=Z500[i].coord('latitude').points
+    lons=Z500[i].coord('longitude').points
+    c = axs_list[i].contourf(lons, lats, P.data, levels=np.linspace(1, 80, 11), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+    c2 = axs_list[i].contour(lons, lats, Z500[i].data/100, levels=np.arange(55, 60, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+    axs_list[i].set_ylim([40, 60])
+    axs_list[i].set_xlim([-10, 20])
+    axs_list[i].clabel(c2, inline=1, fontsize=12)
+    axs_list[i].add_feature(cf.BORDERS)
+    axs_list[i].add_feature(cf.COASTLINE)
+
+for each in axs_list:
+    each.set_title('Model Analogue', loc='right')
+
+axs[0,1].set_title('(b)', loc='left')
+axs[0,2].set_title('(c)', loc='left')
+axs[0,3].set_title('(d)', loc='left')
+axs[1,0].set_title('(e)', loc='left')
+axs[1,1].set_title('(f)', loc='left')
+axs[1,2].set_title('(g)', loc='left')
+axs[1,3].set_title('(h)', loc='left')
+
+plt.subplots_adjust(top = .8, bottom = .2, right = .82, left = 0, 
+            hspace = 0, wspace = 0.1)
+plt.margins(0,0)
+## Event choice - Observed event and boosted event (Fig 1)
+fig, axs = plt.subplots(nrows=1, ncols=2, subplot_kw={'projection': ccrs.PlateCarree()}, figsize=(10,5))
+
+# Observed event
+R1 = [60, 40, 20, -10] # analog region
+event_z500 = gdata.var_event_data('z500', R1, date)
+event_prec = gdata.var_event_data('tp', R1, date)
+lats=event_prec.coord('latitude').points
+lons=event_prec.coord('longitude').points
+c = axs[0].contourf(lons, lats, event_prec.data, levels=np.linspace(1, 80, 11), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.02, 0.4])
+fig.colorbar(c, cax=cbar_ax, ticks=np.arange(0, 100, 10))
+cbar_ax.set_ylabel('Total Precipitation (mm)', labelpad=10, rotation=270, fontsize=12)
+cbar_ax.set_yticklabels(['0', '', '20','','40','','60','','80',''])
+
+lats=event_z500.coord('latitude').points
+lons=event_z500.coord('longitude').points
+c2 = axs[0].contour(lons, lats, event_z500.data/1000, levels=np.arange(55, 58, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[0].clabel(c2, inline=1, fontsize=12)
+axs[0].add_feature(cf.BORDERS)
+axs[0].add_feature(cf.COASTLINE)
+axs[0].set_title('(a)', loc='left')
+axs[0].set_title('Observed Event in Reanalysis', loc='right')
+
+# reference event
+lats=Z500[4].coord('latitude').points
+lons=Z500[4].coord('longitude').points
+c = axs[1].contourf(lons, lats, PREC[3].data, levels=np.linspace(1, 80, 11), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+c2 = axs[1].contour(lons, lats, Z500[3].data/100, levels=np.arange(55, 60, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[1].set_ylim([40, 60])
+axs[1].set_xlim([-10, 20])
+axs[1].clabel(c2, inline=1, fontsize=12)
+axs[1].add_feature(cf.BORDERS)
+axs[1].add_feature(cf.COASTLINE)
+axs[1].set_title('(b)', loc='left')
+axs[1].set_title('Reference Event', loc='right')
+pdata.plot_box(axs[1], [48, 52, 4, 9])
+pdata.plot_box(axs[0], [48, 52, 4, 9])
+
+plt.subplots_adjust(top = .8, bottom = .2, right = .82, left = 0, 
+            hspace = 0, wspace = 0.1)
+plt.margins(0,0)
+## Event choice - Observed event - using MSWX for observations - and boosted event (Fig 1)
+fig, axs = plt.subplots(nrows=1, ncols=2, subplot_kw={'projection': ccrs.PlateCarree()}, figsize=(10,5))
+date = [2021, 'Jul', 14] # event date
+
+# Observed event
+date_obs = '2021195' # 14th July 2021
+x = iris.load('/net/pc200265/nobackup/users/pinto/data/MSWX/pr/'+date_obs+'.nc')[0][0,...]
+#iris.coord_categorisation.add_month(x, 'time')
+#iris.coord_categorisation.add_day_of_month(x, 'time')
+#print(x.coord('day_of_month'))
+lat_con = iris.Constraint(latitude=lambda cell: 40 < cell < 60)
+lon_con = iris.Constraint(longitude=lambda cell: -10 < cell < 20)
+event_prec = x.extract(lat_con&lon_con)
+lats=event_prec.coord('latitude').points
+lons=event_prec.coord('longitude').points
+c = axs[0].contourf(lons, lats, event_prec.data, levels=np.linspace(1, 80, 9), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.02, 0.4])
+fig.colorbar(c, cax=cbar_ax, ticks=np.arange(0, 100, 10))
+cbar_ax.set_ylabel('Total Precipitation (mm)', labelpad=10, rotation=270, fontsize=12)
+cbar_ax.set_yticklabels(['0', '', '20','','40','','60','','80',''])
+
+
+R1 = [60, 40, 20, -10] # analog region
+event_z500 = gdata.var_event_data('z500', R1, date)
+lats=event_z500.coord('latitude').points
+lons=event_z500.coord('longitude').points
+c2 = axs[0].contour(lons, lats, event_z500.data/1000, levels=np.arange(55, 58, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[0].clabel(c2, inline=1, fontsize=12)
+axs[0].add_feature(cf.BORDERS)
+axs[0].add_feature(cf.COASTLINE)
+axs[0].set_title('(a)', loc='left')
+axs[0].set_title('Observed Event', loc='right')
+
+lats=event_z500.coord('latitude').points
+lons=event_z500.coord('longitude').points
+c2 = axs[0].contour(lons, lats, event_z500.data/1000, levels=np.arange(55, 58, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[0].clabel(c2, inline=1, fontsize=12)
+axs[0].add_feature(cf.BORDERS)
+axs[0].add_feature(cf.COASTLINE)
+axs[0].set_title('(a)', loc='left')
+axs[0].set_title('Observed Event', loc='right')
+
+# reference event
+lats=Z500[4].coord('latitude').points
+lons=Z500[4].coord('longitude').points
+c = axs[1].contourf(lons, lats, PREC[3].data, levels=np.linspace(1, 80, 11), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+c2 = axs[1].contour(lons, lats, Z500[3].data/100, levels=np.arange(55, 60, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[1].set_ylim([40, 60])
+axs[1].set_xlim([-10, 20])
+axs[1].clabel(c2, inline=1, fontsize=12)
+axs[1].add_feature(cf.BORDERS)
+axs[1].add_feature(cf.COASTLINE)
+axs[1].set_title('(b)', loc='left')
+axs[1].set_title('Reference Event', loc='right')
+axs[1].pdata
+
+plt.subplots_adjust(top = .8, bottom = .2, right = .82, left = 0, 
+            hspace = 0, wspace = 0.1)
+plt.margins(0,0)
+
+## Event choice - Observed event and boosted event (Fig 1)
+fig, axs = plt.subplots(nrows=1, ncols=3, subplot_kw={'projection': ccrs.PlateCarree()}, figsize=(12,7))
+
+
+# MSWX
+date_obs = '2021195' # 14th July 2021
+x = iris.load('/net/pc200265/nobackup/users/pinto/data/MSWX/pr/'+date_obs+'.nc')[0][0,...]
+#iris.coord_categorisation.add_month(x, 'time')
+#iris.coord_categorisation.add_day_of_month(x, 'time')
+#print(x.coord('day_of_month'))
+lat_con = iris.Constraint(latitude=lambda cell: 40 < cell < 60)
+lon_con = iris.Constraint(longitude=lambda cell: -10 < cell < 20)
+event_prec = x.extract(lat_con&lon_con)
+lats=event_prec.coord('latitude').points
+lons=event_prec.coord('longitude').points
+c = axs[0].contourf(lons, lats, event_prec.data, levels=np.linspace(1, 80, 9), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.02, 0.4])
+fig.colorbar(c, cax=cbar_ax, ticks=np.arange(0, 100, 10))
+cbar_ax.set_ylabel('Total Precipitation (mm)', labelpad=10, rotation=270, fontsize=12)
+cbar_ax.set_yticklabels(['0', '', '20','','40','','60','','80',''])
+
+event_z500 = gdata.var_event_data('z500', R1, date)
+lats=event_z500.coord('latitude').points
+lons=event_z500.coord('longitude').points
+c2 = axs[0].contour(lons, lats, event_z500.data/1000, levels=np.arange(55, 58, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[0].clabel(c2, inline=1, fontsize=12)
+axs[0].add_feature(cf.BORDERS)
+axs[0].add_feature(cf.COASTLINE)
+axs[0].set_title('(a)', loc='left')
+axs[0].set_title('MSWX Event', loc='right')
+
+
+# Observed event
+R1 = [60, 40, 20, -10] # analog region
+event_prec = gdata.var_event_data('tp', R1, date)
+lats=event_prec.coord('latitude').points
+lons=event_prec.coord('longitude').points
+c = axs[1].contourf(lons, lats, event_prec.data, levels=np.linspace(1, 80, 11), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.02, 0.4])
+fig.colorbar(c, cax=cbar_ax, ticks=np.arange(0, 100, 10))
+cbar_ax.set_ylabel('Total Precipitation (mm)', labelpad=10, rotation=270, fontsize=12)
+cbar_ax.set_yticklabels(['0', '', '20','','40','','60','','80',''])
+
+lats=event_z500.coord('latitude').points
+lons=event_z500.coord('longitude').points
+c2 = axs[1].contour(lons, lats, event_z500.data/1000, levels=np.arange(55, 58, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[1].clabel(c2, inline=1, fontsize=12)
+axs[1].add_feature(cf.BORDERS)
+axs[1].add_feature(cf.COASTLINE)
+axs[1].set_title('(b)', loc='left')
+axs[1].set_title('ERA5 Event', loc='right')
+
+# reference event
+lats=Z500[4].coord('latitude').points
+lons=Z500[4].coord('longitude').points
+c = axs[2].contourf(lons, lats, PREC[3].data, levels=np.linspace(1, 80, 11), cmap = plt.cm.get_cmap('Blues'), transform=ccrs.PlateCarree(), extend='max')
+c2 = axs[2].contour(lons, lats, Z500[3].data/100, levels=np.arange(55, 60, .5), cmap = plt.cm.get_cmap('viridis'), transform=ccrs.PlateCarree(), extend='both')
+axs[2].set_ylim([40, 60])
+axs[2].set_xlim([-10, 20])
+axs[2].clabel(c2, inline=1, fontsize=12)
+axs[2].add_feature(cf.BORDERS)
+axs[2].add_feature(cf.COASTLINE)
+axs[2].set_title('(c)', loc='left')
+axs[2].set_title('Reference Event', loc='right')
+pdata.plot_box(axs[1], [48, 52, 4, 9])
+pdata.plot_box(axs[0], [48, 52, 4, 9])
+pdata.plot_box(axs[2], [48, 52, 4, 9])
+
+plt.subplots_adjust(top = .8, bottom = .2, right = .82, left = 0, 
+            hspace = 0, wspace = 0.1)
+plt.margins(0,0)

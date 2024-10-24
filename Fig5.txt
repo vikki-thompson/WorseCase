@@ -1,0 +1,38 @@
+### Load neccessary libraries
+import subprocess
+import numpy as np
+import iris
+import sys
+import matplotlib.pyplot as plt
+sys.path.append('/usr/people/thompson/WP1/boosting')
+import functions_boosting as gboost
+sys.path.append('/usr/people/thompson/WP1')
+import functions_get_data as gdata
+import functions_plot_data as pdata
+import iris.coord_categorisation as icc
+from iris.coord_categorisation import add_season_membership
+import matplotlib.pyplot as plt
+import iris.plot as iplt
+import cartopy.crs as ccrs
+import cartopy as cart
+import glob
+import matplotlib.cm as mpl_cm
+import sys
+import scipy.stats as sps
+from scipy.stats import genextreme as gev
+import random
+import scipy.io
+import xarray as xr
+import netCDF4 as nc
+import iris.coords
+import iris.util
+from iris.util import equalise_attributes
+from iris.util import unify_time_units
+from scipy.stats.stats import pearsonr
+import calendar
+import cartopy.feature as cf
+import itertools
+from cartopy.mpl.patch import geos_to_path
+from matplotlib.collections import LineCollection
+import matplotlib.gridspec as gridspec
+plt.ion(); plt.show()
